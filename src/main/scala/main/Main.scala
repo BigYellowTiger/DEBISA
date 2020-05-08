@@ -1,9 +1,13 @@
 package main
 
+import java.io.Serializable
+import java.util
+
 import scala.io.StdIn
 import scala.collection.mutable.Map
-import all_partitioner.{SourceDataPartitioner,GenePartitioner}
-import all_iterator.{SourceKVIterator,SubsetIterator}
+import all_partitioner.{GenePartitioner, SourceDataPartitioner}
+import all_iterator.{SourceKVIterator, SubsetIterator}
+import all_accumulator.PartNumAccumulator
 import org.apache.log4j.{Level, Logger}
 import org.apache.spark.SparkConf
 import org.apache.spark.serializer.KryoRegistrator
@@ -11,8 +15,10 @@ import org.apache.spark.sql.SparkSession
 import org.apache.spark.sql.types.{IntegerType, StructType}
 import org.apache.spark.storage.StorageLevel
 import org.apache.spark.TaskContext
+import org.apache.spark.util.LongAccumulator
 
 import scala.util.Random
+import scala.util.control.Breaks
 
 object Main {
   def main(args: Array[String]): Unit = {
@@ -38,6 +44,7 @@ object Main {
       .master("local")
       .getOrCreate()
 
+    //计算迭代次数
     val fileData=sparkSession.read.parquet(fileName)
     var instance_num=fileData.count()
     var iteration_num_d:Double=0
@@ -53,14 +60,15 @@ object Main {
     val cachedSourceData=fileData.rdd.zipWithIndex()
       .mapPartitions(it=>new SourceKVIterator(it))
       .partitionBy(new SourceDataPartitioner(instance_num,parallel_num)).persist(StorageLevel.MEMORY_AND_DISK)
+    cachedSourceData.foreach(x=>println("pid: "+TaskContext.getPartitionId()+", "+x))
 
     val one_num=(core_min.asInstanceOf[Double]*reduct_rate).asInstanceOf[Int]
-    val population_size=5
-    val geneList=new Array[(Int,Array[Int])](parallel_num*population_size)
-    var geneList_counter=0
+    val population_size=core_min
+    val geneListMap=Map[Int,Array[Array[Int]]]()
 
     //init all genes
     for(geneId<-0 to parallel_num-1){
+      val partitionGeneList=new Array[Array[Int]](population_size)
       for(pop<-0 to population_size-1){
         val pickedGeneRecorder=new Array[Boolean](core_min)
         val gene=new Array[Int](one_num)
@@ -72,53 +80,39 @@ object Main {
           pickedGeneRecorder.update(temp,true)
           gene.update(one_counter,temp)
         }
-        geneList.update(geneList_counter,(geneId,gene))
-        geneList_counter+=1
+        partitionGeneList.update(pop,gene)
       }
+      geneListMap(geneId)=partitionGeneList
     }
+
+    //获取每位基因对应的数据范围
     val indexMap=Map[Int,Array[(Int,Int)]]()
-    var start=0
-    var gap:Int=instance_num.intValue()/(core_min*parallel_num)
-    println(gap)
-    var end=start+gap-1
+    val allPartNum=new Array[Int](parallel_num)
+    val acc=new PartNumAccumulator(allPartNum)
+    sparkSession.sparkContext.register(acc)
+    InsideFunction.countPartNum(cachedSourceData,acc)
+
     for(geneId<-0 to parallel_num-1){
-      val temp=new Array[(Int,Int)](core_min)
-      for(i<-0 to core_min-1){
-        temp.update(i,(start,end))
-        if(geneId==2 && i==core_min-2){
-          gap=instance_num.intValue()-1-end
-        }
-        start=end+1
-        end=start+gap-1
+      var remainedGroupNum=core_min
+      var remainedDataNum=allPartNum(geneId)
+      var start=0
+      for(i<-0 to geneId-1){
+        start+=allPartNum(i)
       }
-      indexMap(geneId)=temp
+      val tempIndexArray=new Array[(Int,Int)](core_min)
+      for(i<-0 to tempIndexArray.length-1){
+        tempIndexArray.update(i,(start,start+remainedDataNum/remainedGroupNum-1))
+        start=start+remainedDataNum/remainedGroupNum
+        remainedDataNum-=remainedDataNum/remainedGroupNum
+        remainedGroupNum-=1
+      }
+      indexMap(geneId)=tempIndexArray
     }
 
-    var geneRdd=sparkSession.sparkContext.parallelize(geneList).partitionBy(new GenePartitioner(parallel_num))
-//      .foreach(x=>{
-//        print("id:"+x._1+", data:")
-//        for(i<-0 to x._2.length-1){
-//          print(x._2(i)+",")
-//        }
-//        println()
-//      })
+    //开始迭代
+    for(iterIndex<-0 to iteration_num-1){
+      //1-nn，记录每条基因的适应度，每次从每个分区挑一条基因，组成当前要计算的基因组
 
-    //enter the iteration
-    for (current_iterIndex<-0 to iteration_num){
-      //init part
-      val fitness_array=new Array[Double](geneList.length)
-
-      //starting ga
-      val subsetRdd=geneRdd.mapPartitions{
-        iter=>new SubsetIterator(iter,indexMap,cachedSourceData)
-      }.foreach(x=>println(x))
-
-//      赌轮盘挑选交配
-//      生成下一代基因
-//      delete data
     }
-
-    //save file
-
   }
 }

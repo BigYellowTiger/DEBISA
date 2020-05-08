@@ -1,37 +1,35 @@
 package test_code
 
+import org.apache.spark.TaskContext
+
+import scala.collection.mutable
 import scala.util.Random
 import scala.collection.mutable.Map
 
 object Test {
   def main(args: Array[String]): Unit = {
-    val instance_num=100
-    val core_min=10
     val parallel_num=3
-    val indexMap=Map[Int,Array[(Int,Int)]]()
-    var start=0
-    var gap:Int=instance_num.intValue()/(core_min*parallel_num)
-    println(gap)
-    var end=start+gap-1
+    val core_min=10
+    val allPartNum=mutable.Map[Int,Int]()
+    allPartNum(0)=34
+    allPartNum(1)=33
+    allPartNum(2)=33
+    val indexMap=mutable.Map[Int,Array[(Int,Int)]]()
     for(geneId<-0 to parallel_num-1){
-      val temp=new Array[(Int,Int)](core_min)
-      for(i<-0 to core_min-1){
-        temp.update(i,(start,end))
-        if(geneId==2 && i==core_min-2){
-          gap=instance_num.intValue()-1-end
-        }
-        start=end+1
-        end=start+gap-1
+      var remainedGroupNum=core_min
+      var remainedDataNum=allPartNum(geneId)
+      var start=0
+      for(i<-0 to geneId-1){
+        start+=allPartNum(i)
       }
-      indexMap(geneId)=temp
-    }
-
-    for(i<-0 to parallel_num-1){
-      print("id:"+i+", data:")
-      for(j<-0 to indexMap(i).length-1){
-        print(indexMap(i)(j)+",")
+      val tempIndexArray=new Array[(Int,Int)](core_min)
+      for(i<-0 to tempIndexArray.length-1){
+        tempIndexArray.update(i,(start,start+remainedDataNum/remainedGroupNum-1))
+        start=start+remainedDataNum/remainedGroupNum
+        remainedDataNum-=remainedDataNum/remainedGroupNum
+        remainedGroupNum-=1
       }
-      println()
+      indexMap(geneId)=tempIndexArray
     }
   }
 }
