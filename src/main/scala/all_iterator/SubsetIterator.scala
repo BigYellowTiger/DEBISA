@@ -3,6 +3,7 @@ package all_iterator
 import java.util
 
 import scala.collection.mutable.Map
+import scala.collection.mutable.Seq
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.Row
 
