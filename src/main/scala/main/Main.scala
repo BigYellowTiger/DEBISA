@@ -199,7 +199,19 @@ object Main {
       }
 
       //进行基因交换
+      val rePickCounter=Map[Int,Int]()
+      for(rePickIndex<-0 to parallel_num-1){
+        rePickCounter.update(rePickIndex,0)
+      }
+      CrossOverAndMutation.crossOver(geneListMap,allGeneFitness,bestGene,rePickCounter)
 
+      //变异
+      val mutationThreshold=12
+      for(rePickCounterIndex<-0 to parallel_num-1){
+        if(rePickCounter(rePickCounterIndex)>=mutationThreshold){
+          CrossOverAndMutation.mutation(geneListMap)
+        }
+      }
     }
   }
 }
