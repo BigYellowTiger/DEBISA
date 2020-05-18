@@ -1,9 +1,10 @@
 package datapre
 
 import scala.io.StdIn
-
 import org.apache.log4j.{Level, Logger}
 import org.apache.spark.sql.{SaveMode, SparkSession}
+
+import scala.util.Random
 
 object CsvToParquet {
   def main(args: Array[String]): Unit = {
@@ -29,7 +30,13 @@ object CsvToParquet {
     fileData.printSchema()
     println(fileData.count())
 
-    val result=fileData.write.mode(SaveMode.Overwrite).parquet(savedName)
+    //打乱数据s
+    import sparkSession.implicits._
+    val kv=fileData.withColumn("rand",col=fileData("doors")*Random.nextInt())
+    val sortKv=kv.orderBy("rand")
+    val sorted=sortKv.drop("rand")
+
+    val result=sorted.write.mode(SaveMode.Overwrite).parquet(savedName)
     val test=sparkSession.read.parquet(savedName)
     test.printSchema()
     test.show(1)

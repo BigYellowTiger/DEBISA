@@ -186,12 +186,12 @@ object CrossOverAndMutation {
         val mutStart=Random.nextInt(currentGene.length*3/4)
         val mutEnd=mutStart+currentGene.length/4
         /*******************/
-        println("---------------------")
-        println("start "+mutStart)
-        println("end "+mutEnd)
-        print("未发生变异前：")
-        currentGene.foreach(x=>print(x+","))
-        println()
+//        println("---------------------")
+//        println("start "+mutStart)
+//        println("end "+mutEnd)
+//        print("未发生变异前：")
+//        currentGene.foreach(x=>print(x+","))
+//        println()
         /*******************/
 
         var oneCounter=0
@@ -205,9 +205,9 @@ object CrossOverAndMutation {
           }
         }
         /*******************/
-        print("未对齐的变异：")
-        currentGene.foreach(x=>print(x+","))
-        println()
+//        print("未对齐的变异：")
+//        currentGene.foreach(x=>print(x+","))
+//        println()
         /*******************/
 
         //对齐
@@ -234,9 +234,9 @@ object CrossOverAndMutation {
         }
 
         /*******************/
-        print("对齐后的变异：")
-        currentGene.foreach(x=>print(x+","))
-        println()
+//        print("对齐后的变异：")
+//        currentGene.foreach(x=>print(x+","))
+//        println()
         /*******************/
       }
     })
