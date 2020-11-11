@@ -46,12 +46,6 @@
 [debug] 	  D:\all_Project\is_ga\target\scala-2.11\classes\datapre\CreateTestFile$.class
 [debug] 	datapre\CreateTestFile.class
 [debug] 	  D:\all_Project\is_ga\target\scala-2.11\classes\datapre\CreateTestFile.class
-[debug] 	datapre\CreateTrainingData$$anonfun$main$1.class
-[debug] 	  D:\all_Project\is_ga\target\scala-2.11\classes\datapre\CreateTrainingData$$anonfun$main$1.class
-[debug] 	datapre\CreateTrainingData$.class
-[debug] 	  D:\all_Project\is_ga\target\scala-2.11\classes\datapre\CreateTrainingData$.class
-[debug] 	datapre\CreateTrainingData.class
-[debug] 	  D:\all_Project\is_ga\target\scala-2.11\classes\datapre\CreateTrainingData.class
 [debug] 	datapre\CsvToParquet$.class
 [debug] 	  D:\all_Project\is_ga\target\scala-2.11\classes\datapre\CsvToParquet$.class
 [debug] 	datapre\CsvToParquet.class
@@ -214,6 +208,8 @@
 [debug] 	  D:\all_Project\is_ga\target\scala-2.11\classes\main\Main$$anonfun$main$2$$anonfun$apply$mcVI$sp$2.class
 [debug] 	main\Main$$anonfun$main$2$$anonfun$apply$mcVI$sp$22.class
 [debug] 	  D:\all_Project\is_ga\target\scala-2.11\classes\main\Main$$anonfun$main$2$$anonfun$apply$mcVI$sp$22.class
+[debug] 	main\Main$$anonfun$main$2$$anonfun$apply$mcVI$sp$30.class
+[debug] 	  D:\all_Project\is_ga\target\scala-2.11\classes\main\Main$$anonfun$main$2$$anonfun$apply$mcVI$sp$30.class
 [debug] 	main\Main$$anonfun$main$2.class
 [debug] 	  D:\all_Project\is_ga\target\scala-2.11\classes\main\Main$$anonfun$main$2.class
 [debug] 	main\Main$.class

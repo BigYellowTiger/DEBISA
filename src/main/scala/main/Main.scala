@@ -1,9 +1,5 @@
 package main
 
-import java.io.Serializable
-import java.util
-import java.util.concurrent.atomic.LongAccumulator
-
 import scala.io.StdIn
 import scala.collection.mutable.Map
 import scala.collection.mutable.Seq
@@ -25,15 +21,20 @@ import scala.util.control.Breaks
 object Main {
   def main(args: Array[String]): Unit = {
     print("Enter the file name:")
-    val fileName=StdIn.readLine()
+//    val fileName=StdIn.readLine()
+    val fileName = "/public/home/hpc182212046/test_slurm/100_5.csv"
     print("Enter the reduct_rate:")
-    val reduct_rate=StdIn.readDouble()
+//    val reduct_rate=StdIn.readDouble()
+    val reduct_rate = 0.5
     print("Enter the core_min:")
-    var core_min=StdIn.readInt()
+//    var core_min=StdIn.readInt()
+    var core_min=20
     print("Enter the parallel_num:")
-    val parallel_num=StdIn.readInt()
+//    val parallel_num=StdIn.readInt()
+    val parallel_num = 20
     print("Enter the result_num:")
-    val result_num=StdIn.readInt()
+//    val result_num=StdIn.readInt()
+    val result_num = 200
 
     Logger.getLogger("org").setLevel(Level.ERROR)
     val sparkSession = SparkSession
@@ -42,20 +43,21 @@ object Main {
       .config("spark.shuffle.memoryFraction","0.3")
       .config("spark.serializer", "org.apache.spark.serializer.KryoSerializer")
       .appName("kernel")
-//      .master("spark://master:7077")
-      .master("local")
+//      .master("122.207.82.5:7077")
+      .master("local["+parallel_num+"]")
       .getOrCreate()
 
     //计算迭代次数
-    val fileData=sparkSession.read.parquet(fileName)
-//    val fileData = sparkSession
-//      .read.format("csv")
-//      .option("header","true")
-//      .load(fileName)
+//    val fileData=sparkSession.read.parquet(fileName)
+    val fileData = sparkSession
+      .read.format("csv")
+      .option("header","true")
+      .load(fileName)
     var sourceSchema = Seq[String]()
     for(i <- 0 to fileData.schema.length-1){
       sourceSchema = sourceSchema :+ fileData.schema(i).name
     }
+
     val oriData=fileData.select(sourceSchema.map(name => fileData.col(name).cast(DoubleType)):_*)
     var instance_num=fileData.count()
     var iteration_num_d:Double=0
@@ -132,7 +134,8 @@ object Main {
           //println("filter start")
           //subSetRdd.foreach(x=>println(x))
           //println("filter end")
-          val calculatedSubset=subSetRdd.combineByKey(InsideFunction.firstMeet
+          val calculatedSubset=subSetRdd.combineByKey(
+            InsideFunction.firstMeet
             ,InsideFunction.samePartMeet
             ,InsideFunction.crossPart)
 
@@ -194,7 +197,7 @@ object Main {
           /***************/
           println("所有基因的适应度")
           for(pI<-0 to parallel_num-1){
-            println("fen qu"+pI)
+            println("分区"+pI)
             allGeneFitness(pI).foreach(x=>print(x+","))
             println()
           }
@@ -259,6 +262,7 @@ object Main {
           }
         }
       }
+      sparkSession.sparkContext.getExecutorMemoryStatus.foreach(x => println(x))
       if(iterIndex==iteration_num){
         val structField=new Array[StructField](sourceSchema.length)
         for(tempI<-0 to sourceSchema.length-1){
@@ -266,8 +270,8 @@ object Main {
         }
         val structType=StructType(structField)
         val finallyRdd=currentGaDataSet.mapPartitions(it=>new ToResultIterator(it))
-        val savedName="/testData/result.parquet"
-        val finallyDataFrame=sparkSession.createDataFrame(finallyRdd,structType).write.mode(SaveMode.Overwrite).parquet(savedName)
+        val savedName="/public/home/hpc182212046/test_slurm/pick_res.csv"
+        val finallyDataFrame=sparkSession.createDataFrame(finallyRdd,structType).write.mode(SaveMode.Overwrite).csv(savedName)
       }
     }
   }
