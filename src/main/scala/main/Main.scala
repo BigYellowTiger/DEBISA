@@ -25,7 +25,7 @@ object Main {
 //    val inputFile = Source.fromFile("/public/home/hpc182212046/single_spark/input_file")
 //    val fileName = inputFile.getLines().next()
 
-    val fileName = "/isData/20_500000.csv"
+    val fileName = "/isData/20_1000000.csv"
 
 //    print("Enter the reduct_rate:")
 //    val reduct_rate=StdIn.readDouble()
@@ -129,29 +129,56 @@ object Main {
                 tempConditionSeq=tempConditionSeq:+indexMap(tempKey)(tempConditionIndex)
             }
                      currentCondition(tempKey)=tempConditionSeq.toArray
-        }
-
-        //1-nn
-        val subSetRdd=currentGaDataSet.filter(InsideFunction.belongToGene(currentCondition))
-        val calculatedSubset=subSetRdd.combineByKey(
-          InsideFunction.firstMeet
-          ,InsideFunction.samePartMeet
-          ,InsideFunction.crossPart)
-
-        //计算fitness
-        fitnessAccumulator.reset()
-        calculatedSubset.foreach(x=>{
-          fitnessAccumulator.add(x)
-        })
-
-          //记录fitness
-          for(fitnessRecordPIndex<-0 to parallel_num-1){
-            var tempFitnessSeq=allGeneFitness(fitnessRecordPIndex)
-            tempFitnessSeq=tempFitnessSeq:+fitnessAccumulator
-              .value(fitnessRecordPIndex)(0).toDouble/fitnessAccumulator.value(fitnessRecordPIndex)(1).toDouble
-            allGeneFitness.update(fitnessRecordPIndex,tempFitnessSeq)
           }
-          println("第"+i.toString+"次适应度计算完成")
+
+          //1-nn
+          val subSetRdd=currentGaDataSet.filter(InsideFunction.belongToGene(currentCondition))
+          subSetRdd.cache()
+          // 如果这一基因所代表的数据子集超过parallel_num*5000个样本，则进行采样，否则直接计算适应度，采样方式为每个种群随机选5000个样本用于计算
+          val max_cal_instance_num = 5000
+          val fitness_sample_fraction = max_cal_instance_num / ((instance_num / parallel_num) * math.pow(reduct_rate, iterIndex))
+          if (fitness_sample_fraction <1) {
+            val sample_times = 10
+            val sampleFitnessRecorder = Map[Int,Seq[Double]]()
+            for(sampleFitnessInitIndex <-0 to parallel_num) {
+              sampleFitnessRecorder(sampleFitnessInitIndex) = Seq[Double]()
+            }
+            for(sampleIndex <-0 to sample_times-1) {
+              val sampledRdd = subSetRdd.sample(false, fitness_sample_fraction)
+              val calculatedSubset=sampledRdd.combineByKey(
+                InsideFunction.firstMeet
+                ,InsideFunction.samePartMeet
+                ,InsideFunction.crossPart)
+
+              fitnessAccumulator.reset()
+              calculatedSubset.foreach(x=>{
+                fitnessAccumulator.add(x)
+              })
+              for(curr_sample_record_index <-0 to parallel_num-1){
+                var tempFitnessSeq = sampleFitnessRecorder(curr_sample_record_index)
+                tempFitnessSeq = tempFitnessSeq :+ fitnessAccumulator
+                  .value(curr_sample_record_index)(0).toDouble/fitnessAccumulator.value(curr_sample_record_index)(1).toDouble
+                sampleFitnessRecorder.update(curr_sample_record_index,tempFitnessSeq)
+              }
+              println("完成一次采样适应度计算")
+            }
+            subSetRdd.unpersist()
+
+            //记录fitness
+            for(fitnessRecordPIndex<-0 to parallel_num-1){
+              var tempFitnessSeq=allGeneFitness(fitnessRecordPIndex)
+              val allSampleResult = sampleFitnessRecorder(fitnessRecordPIndex)
+              var sum_fitness = 0.0
+              for(obj <- allSampleResult){
+                sum_fitness += obj
+              }
+              tempFitnessSeq = tempFitnessSeq :+ sum_fitness / sample_times
+              allGeneFitness.update(fitnessRecordPIndex,tempFitnessSeq)
+            }
+            println("第"+i.toString+"次适应度计算完成")
+          } else {
+
+          }
         }
 
         val bestGene=Map[Int,Array[Int]]()
