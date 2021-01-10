@@ -133,11 +133,11 @@ object Main {
 
           //1-nn
           val subSetRdd=currentGaDataSet.filter(InsideFunction.belongToGene(currentCondition))
-          subSetRdd.cache()
           // 如果这一基因所代表的数据子集超过parallel_num*5000个样本，则进行采样，否则直接计算适应度，采样方式为每个种群随机选5000个样本用于计算
-          val max_cal_instance_num = 5000
+          val max_cal_instance_num = 2000
           val fitness_sample_fraction = max_cal_instance_num / ((instance_num / parallel_num) * math.pow(reduct_rate, iterIndex))
           if (fitness_sample_fraction <1) {
+            subSetRdd.cache()
             val sample_times = 10
             val sampleFitnessRecorder = Map[Int,Seq[Double]]()
             for(sampleFitnessInitIndex <-0 to parallel_num) {
@@ -177,7 +177,25 @@ object Main {
             }
             println("第"+i.toString+"次适应度计算完成")
           } else {
+            val calculatedSubset=subSetRdd.combineByKey(
+              InsideFunction.firstMeet
+              ,InsideFunction.samePartMeet
+              ,InsideFunction.crossPart)
 
+            //计算fitness
+            fitnessAccumulator.reset()
+            calculatedSubset.foreach(x=>{
+              fitnessAccumulator.add(x)
+            })
+
+            //记录fitness
+            for(fitnessRecordPIndex<-0 to parallel_num-1){
+              var tempFitnessSeq=allGeneFitness(fitnessRecordPIndex)
+              tempFitnessSeq=tempFitnessSeq:+fitnessAccumulator
+                .value(fitnessRecordPIndex)(0).toDouble/fitnessAccumulator.value(fitnessRecordPIndex)(1).toDouble
+              allGeneFitness.update(fitnessRecordPIndex,tempFitnessSeq)
+            }
+            println("第"+i.toString+"次适应度计算完成")
           }
         }
 
