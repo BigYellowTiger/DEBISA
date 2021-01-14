@@ -25,6 +25,7 @@ object Main {
 //    val inputFile = Source.fromFile("/public/home/hpc182212046/single_spark/input_file")
 //    val fileName = inputFile.getLines().next()
 
+//    val fileName = "C:\\Users\\qly\\Desktop\\check.csv"
     val fileName = "/isData/20_1000000.csv"
 
 //    print("Enter the reduct_rate:")
@@ -32,13 +33,13 @@ object Main {
     val reduct_rate = 0.5
 //    print("Enter the core_min:")
 //    var core_min=StdIn.readInt()
-    var core_min=40
+    var core_min=30
 //    print("Enter the parallel_num:")
 //    val parallel_num=StdIn.readInt()
-    val parallel_num = 20
+    val parallel_num = 10
 //    print("Enter the result_num:")
 //    val result_num=StdIn.readInt()
-    val result_num = 200
+    val result_num = 2
 
     Logger.getLogger("org").setLevel(Level.ERROR)
     // 在中南大学hpc上读取master位置
@@ -100,11 +101,19 @@ object Main {
     var currentGaDataSet=cachedSourceData
     val fitnessAccumulator=new FitnessAccumulator(parallel_num)
     sparkSession.sparkContext.register(fitnessAccumulator)
-    val singleGaIterNum=1
+    val singleGaIterNum=30
     iteration_num=3
     for(iterIndex<-1 to iteration_num){
       //init all genes
-      println("第"+iterIndex.toString+"次迭代")
+      println("开始第"+iterIndex.toString+"次遗传算法")
+      println("本轮遗传算法数据集包含"+currentGaDataSet.count()+"个样本")
+      println("本轮遗传算法单位基因映射情况如下：")
+      var min_range = 999999999
+      var max_range = 0
+      var ave_range = 0
+//      for (parallel_id <- 0 to parallel_num-1){
+//        if (parallel_id)
+//      }
       CreateGene.createGene(parallel_num,population_size,one_num,core_min,geneListMap)
       println("基因初始化完成")
 
@@ -117,6 +126,7 @@ object Main {
         }
 
         //开始对每条基因进行适应度评价
+        println("第"+iterIndex+"次遗传算法的第"+currentGaIterIndex+"次迭代的适应度计算开始")
         for(i<-0 to core_min-1){
           val currentGeneList=Map[Int,Array[Int]]()
           val currentCondition=Map[Int,Array[(Int,Int)]]()
@@ -128,7 +138,7 @@ object Main {
               if(tempGene(tempConditionIndex)==1)
                 tempConditionSeq=tempConditionSeq:+indexMap(tempKey)(tempConditionIndex)
             }
-                     currentCondition(tempKey)=tempConditionSeq.toArray
+            currentCondition(tempKey)=tempConditionSeq.toArray
           }
 
           //1-nn
@@ -138,9 +148,9 @@ object Main {
           val fitness_sample_fraction = max_cal_instance_num / ((instance_num / parallel_num) * math.pow(reduct_rate, iterIndex))
           if (fitness_sample_fraction <1) {
             subSetRdd.cache()
-            val sample_times = 10
+            val sample_times = 5
             val sampleFitnessRecorder = Map[Int,Seq[Double]]()
-            for(sampleFitnessInitIndex <-0 to parallel_num) {
+            for(sampleFitnessInitIndex <-0 to parallel_num-1) {
               sampleFitnessRecorder(sampleFitnessInitIndex) = Seq[Double]()
             }
             for(sampleIndex <-0 to sample_times-1) {
@@ -149,6 +159,7 @@ object Main {
                 InsideFunction.firstMeet
                 ,InsideFunction.samePartMeet
                 ,InsideFunction.crossPart)
+//              println("完成采样后的适应度计算RDD")
 
               fitnessAccumulator.reset()
               calculatedSubset.foreach(x=>{
@@ -160,7 +171,6 @@ object Main {
                   .value(curr_sample_record_index)(0).toDouble/fitnessAccumulator.value(curr_sample_record_index)(1).toDouble
                 sampleFitnessRecorder.update(curr_sample_record_index,tempFitnessSeq)
               }
-              println("完成一次采样适应度计算")
             }
             subSetRdd.unpersist()
 
@@ -175,7 +185,7 @@ object Main {
               tempFitnessSeq = tempFitnessSeq :+ sum_fitness / sample_times
               allGeneFitness.update(fitnessRecordPIndex,tempFitnessSeq)
             }
-            println("第"+i.toString+"次适应度计算完成")
+            println("第"+iterIndex+"次遗传算法的"+"第"+currentGaIterIndex+"次迭代的第"+i.toString+"条基因的适应度计算完成")
           } else {
             val calculatedSubset=subSetRdd.combineByKey(
               InsideFunction.firstMeet
@@ -195,7 +205,7 @@ object Main {
                 .value(fitnessRecordPIndex)(0).toDouble/fitnessAccumulator.value(fitnessRecordPIndex)(1).toDouble
               allGeneFitness.update(fitnessRecordPIndex,tempFitnessSeq)
             }
-            println("第"+i.toString+"次适应度计算完成")
+            println("第"+iterIndex+"次遗传算法的"+"第"+currentGaIterIndex+"次迭代的第"+i.toString+"条基因的适应度计算完成")
           }
         }
 
@@ -230,6 +240,8 @@ object Main {
         if(currentGaIterIndex==singleGaIterNum){
           //找到适应度最高的基因
           val finallyBestGene=bestGene
+//          print("最好的基因：")
+//          println(finallyBestGene)
 
           //获取最好基因对应的映射
           val finallyBestCondition=Map[Int,Array[(Int,Int)]]()

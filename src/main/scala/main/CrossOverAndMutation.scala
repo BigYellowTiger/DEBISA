@@ -22,11 +22,16 @@ object CrossOverAndMutation {
 
       //挑基因
       var newGenePartitionSeq=Seq[Array[Int]]()
-      for(pickedTimes<-1 to currentGenePartition.length/2-1){
-        val r1=Random.nextInt((fitness_sum).toInt)
-        val r2=Random.nextInt((fitness_sum).toInt)
-        var picked1 = -1
-        var picked2 = -1
+      for(pickedTimes<-0 to currentGenePartition.length/2){
+        var r1=Random.nextDouble() % (fitness_sum % 1)
+        var r2=Random.nextDouble() % (fitness_sum % 1)
+        if (fitness_sum.toInt >= 1){
+          r1 += Random.nextInt(fitness_sum.toInt+1)
+          r2 += Random.nextInt(fitness_sum.toInt+1)
+        }
+
+        var picked1 = Random.nextInt(roulette.length)
+        var picked2 = Random.nextInt(roulette.length)
         for(i<-0 to roulette.length-1){
           val currentRou=roulette(i)
           var pickHappened=false
@@ -85,16 +90,16 @@ object CrossOverAndMutation {
         val crossStart=Random.nextInt(currentGenePartition(0).length*2/3)
         val crossEnd=crossStart+currentGenePartition(0).length/3
         /****************/
-        println("part id "+partId)
-        println("picked 1")
-        pickedGeneList1.foreach(x=>print(x+","))
-        println()
-        println("picked 2")
-        pickedGeneList2.foreach(x=>print(x+","))
-        println()
-        println("cross start: "+crossStart)
-        println("cross end: "+crossEnd)
-        println("--------------------------")
+//        println("part id "+partId)
+//        println("picked 1")
+//        pickedGeneList1.foreach(x=>print(x+","))
+//        println()
+//        println("picked 2")
+//        pickedGeneList2.foreach(x=>print(x+","))
+//        println()
+//        println("cross start: "+crossStart)
+//        println("cross end: "+crossEnd)
+//        println("--------------------------")
         /****************/
         var newGene1=new Array[Int](pickedGeneList1.length)
         var newGene2=new Array[Int](pickedGeneList1.length)
@@ -171,6 +176,9 @@ object CrossOverAndMutation {
         //将交换完成的基因放入新基因库中
         newGenePartitionSeq=newGenePartitionSeq:+newGene1
         newGenePartitionSeq=newGenePartitionSeq:+newGene2
+      }
+      while (currentGenePartition.length - newGenePartitionSeq.length != 1){
+        newGenePartitionSeq = newGenePartitionSeq.drop(1)
       }
       newGenePartitionSeq=newGenePartitionSeq:+bestGene(partId)
       allGeneList.update(partId,newGenePartitionSeq.toArray)
