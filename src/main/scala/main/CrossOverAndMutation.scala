@@ -14,7 +14,7 @@ object CrossOverAndMutation {
       var fitness_sum=0.0;
       val roulette=new Array[(Double,Double)](currentGenePartition.length)
       for(i<-0 to roulette.length-1){
-        val range=math.exp(currentFitnessPartition(i))
+        val range=math.exp(currentFitnessPartition(i)*10)
         roulette.update(i,(start,start+range))
         start+=range
         fitness_sum+=range
@@ -32,24 +32,31 @@ object CrossOverAndMutation {
 
         var picked1 = Random.nextInt(roulette.length)
         var picked2 = Random.nextInt(roulette.length)
+        var pick1Happened=false
+        var pick2Happened=false
         for(i<-0 to roulette.length-1){
           val currentRou=roulette(i)
-          var pickHappened=false
           if(r1>=currentRou._1&&r1<currentRou._2) {
             picked1=i
-            pickHappened=true
+            pick1Happened=true
           }
           if(r2>=currentRou._1&&r2<currentRou._2) {
             picked2=i
-            pickHappened=true
+            pick2Happened=true
           }
-          if(picked1==picked2&&pickHappened){
+          if(picked1==picked2&&pick1Happened&&pick2Happened){
             if(picked1==roulette.length-1){
               picked2=picked1-1
             }else{
               picked2=picked1+1
             }
           }
+        }
+        if (pick1Happened == false || pick2Happened == false) {
+          println("出现适应度未命中情况")
+          println("总适应度为："+fitness_sum)
+          println("r1 = "+r1+", r2 = "+r2+", 总fitness = "+fitness_sum)
+          println(roulette)
         }
 
         //计算汉明距离，不满足就往后选一个基因，如连续3次不满足停止重选，如单轮交换中出现12次重选，则认为算法进入收敛态
@@ -186,6 +193,7 @@ object CrossOverAndMutation {
   }
 
   def mutation(allGeneList:Map[Int,Array[Array[Int]]])={
+    println("发生变异")
     //除了最优秀的，都发生四分之一位的变异，并在其他位置对齐，最优秀的在最后一个
     allGeneList.keySet.foreach(key=>{
       val currentGenePart=allGeneList(key)

@@ -1,5 +1,7 @@
 package main
 
+import java.util.Date
+
 import scala.io.StdIn
 import scala.io.Source
 import scala.collection.mutable.Map
@@ -21,41 +23,47 @@ import scala.util.control.Breaks
 
 object Main {
   def main(args: Array[String]): Unit = {
-    print("Enter the file name:")
-//    val inputFile = Source.fromFile("/public/home/hpc182212046/single_spark/input_file")
-//    val fileName = inputFile.getLines().next()
-
-//    val fileName = "C:\\Users\\qly\\Desktop\\check.csv"
-    val fileName = "/isData/20_1000000.csv"
-
-//    print("Enter the reduct_rate:")
-//    val reduct_rate=StdIn.readDouble()
+    println("start instance selection")
+    val start_time = new Date().getTime
+//    val filepath = "/public/home/hpc182212046/dataset/randomDataset/"
+    val filepath = "/public/home/hpc182212046/dataset/classification/processed"
+    val fileName_withoutPath = "20_1000000.csv"
+    val fileName = filepath + fileName_withoutPath
+    val resultPath = "/public/home/hpc182212046/dataset/is_result/"
     val reduct_rate = 0.5
-//    print("Enter the core_min:")
-//    var core_min=StdIn.readInt()
-    var core_min=30
-//    print("Enter the parallel_num:")
-//    val parallel_num=StdIn.readInt()
-    val parallel_num = 10
-//    print("Enter the result_num:")
-//    val result_num=StdIn.readInt()
-    val result_num = 2
+    println("reduct_rate="+reduct_rate)
+    var core_min=10
+    println("core_min="+core_min)
+    val parallel_num = 32
+    println("parallel_num="+parallel_num)
+    val iteration_num = 3
+    println("iteration_num="+iteration_num)
+    val singleGaIterNum=10
+    println("singe_iter_num="+singleGaIterNum)
+//    val max_cal_instance_num = 2000 // 单次采样适应度计算每个种群的最大样本数
+    val sample_times = 5
+    println("sample_times="+sample_times)
+    var fitness_sample_fraction = 0.1 // 小于10w的数据集不采样算适应度
+    println("sample fraction="+fitness_sample_fraction)
+    val mutationThreshold=24 // 发生多少次父母基因汉明距离过短就发生变异
+    val resultPostfix = "_"+core_min.toString+"len_"+parallel_num+"p_"+iteration_num+"it_"+sample_times+"samp_0"+(fitness_sample_fraction*100).toInt+"samp"
 
+    println("当前计算的数据集为："+fileName_withoutPath)
     Logger.getLogger("org").setLevel(Level.ERROR)
-    // 在中南大学hpc上读取master位置
-//    val master_name = Source.fromFile("/public/home/hpc182212046/test_slurm/spark_on_slurm/echo_test").getLines().next()
-//    println("master name is "+master_name)
     val sparkSession = SparkSession
       .builder()
       .config("spark.default.parallelism",parallel_num)
       .config("spark.shuffle.memoryFraction","0.3")
-//      .config("spark.driver.memory","39g")
+      .config("spark.driver.memory","39g")
       .config("spark.serializer", "org.apache.spark.serializer.KryoSerializer")
       .appName("instance_selection")
-      .master("spark://master:7077")
+//      .master("spark://master:7077")
 //      .master(master_name)
-//      .master("local[*]")
+      .master("local[*]")
       .getOrCreate()
+    // 打印核心使用数
+    println("executor数为："+sparkSession.sparkContext.getExecutorMemoryStatus.toArray.length)
+    println("core数："+java.lang.Runtime.getRuntime.availableProcessors)
 
     //计算迭代次数
 //    val fileData=sparkSession.read.parquet(fileName)
@@ -70,15 +78,18 @@ object Main {
 
     val oriData=fileData.select(sourceSchema.map(name => fileData.col(name).cast(DoubleType)):_*)
     var instance_num=fileData.count()
-    var iteration_num_d:Double=0
-    if(result_num/parallel_num<=core_min){
-      val a=(core_min*parallel_num).asInstanceOf[Double]/instance_num.asInstanceOf[Double]
-      iteration_num_d=Math.log(a)/Math.log(reduct_rate)
-    }else{
-      val a=result_num.asInstanceOf[Double]/instance_num.asInstanceOf[Double]
-      iteration_num_d=Math.log(a)/Math.log(reduct_rate)
+    if (instance_num < 100000){
+      fitness_sample_fraction = 100
     }
-    var iteration_num=iteration_num_d.asInstanceOf[Int]
+    var iteration_num_d:Double=0
+//    if(result_num/parallel_num<=core_min){
+//      val a=(core_min*parallel_num).asInstanceOf[Double]/instance_num.asInstanceOf[Double]
+//      iteration_num_d=Math.log(a)/Math.log(reduct_rate)
+//    }else{
+//      val a=result_num.asInstanceOf[Double]/instance_num.asInstanceOf[Double]
+//      iteration_num_d=Math.log(a)/Math.log(reduct_rate)
+//    }
+//    var iteration_num=iteration_num_d.asInstanceOf[Int]
 
     val cachedSourceData=oriData.rdd.zipWithIndex()
       .mapPartitions(it=>new SourceKVIterator(it))
@@ -101,16 +112,16 @@ object Main {
     var currentGaDataSet=cachedSourceData
     val fitnessAccumulator=new FitnessAccumulator(parallel_num)
     sparkSession.sparkContext.register(fitnessAccumulator)
-    val singleGaIterNum=30
-    iteration_num=3
     for(iterIndex<-1 to iteration_num){
       //init all genes
       println("开始第"+iterIndex.toString+"次遗传算法")
       println("本轮遗传算法数据集包含"+currentGaDataSet.count()+"个样本")
       println("本轮遗传算法单位基因映射情况如下：")
+      var mutation_happened = false // 每次遗传算法仅会变异一次
       var min_range = 999999999
       var max_range = 0
       var ave_range = 0
+      var range_sum_static = 0
 //      for (parallel_id <- 0 to parallel_num-1){
 //        if (parallel_id)
 //      }
@@ -144,11 +155,11 @@ object Main {
           //1-nn
           val subSetRdd=currentGaDataSet.filter(InsideFunction.belongToGene(currentCondition))
           // 如果这一基因所代表的数据子集超过parallel_num*5000个样本，则进行采样，否则直接计算适应度，采样方式为每个种群随机选5000个样本用于计算
-          val max_cal_instance_num = 2000
-          val fitness_sample_fraction = max_cal_instance_num / ((instance_num / parallel_num) * math.pow(reduct_rate, iterIndex))
+
+//          val fitness_sample_fraction = max_cal_instance_num / ((instance_num / parallel_num) * math.pow(reduct_rate, iterIndex))
+//          val fitness_sample_fraction = 0.4
           if (fitness_sample_fraction <1) {
             subSetRdd.cache()
-            val sample_times = 5
             val sampleFitnessRecorder = Map[Int,Seq[Double]]()
             for(sampleFitnessInitIndex <-0 to parallel_num-1) {
               sampleFitnessRecorder(sampleFitnessInitIndex) = Seq[Double]()
@@ -230,7 +241,6 @@ object Main {
           CrossOverAndMutation.crossOver(geneListMap,allGeneFitness,bestGene,rePickCounter)
 
         //变异
-        val mutationThreshold=12
         for(rePickCounterIndex<-0 to parallel_num-1){
           if(rePickCounter(rePickCounterIndex)>=mutationThreshold||currentGaIterIndex==singleGaIterNum*4/5){
             CrossOverAndMutation.mutation(geneListMap)
@@ -273,13 +283,15 @@ object Main {
       }
 
       if(iterIndex==iteration_num){
+        val endTime = new Date().getTime
+        println("运行时间为: "+(endTime-start_time)/1000)
         val structField=new Array[StructField](sourceSchema.length)
         for(tempI<-0 to sourceSchema.length-1){
           structField.update(tempI,StructField(sourceSchema(tempI),DoubleType,false))
         }
         val structType=StructType(structField)
-        val finallyRdd=currentGaDataSet.mapPartitions(it=>new ToResultIterator(it))
-        val savedName="/isData/result"
+        val finallyRdd=currentGaDataSet.mapPartitions(it=>new ToResultIterator(it)).repartition(1)
+        val savedName=resultPath+fileName_withoutPath+resultPostfix
         sparkSession.createDataFrame(finallyRdd,structType).write.mode(SaveMode.Overwrite).csv(savedName)
       }
     }
