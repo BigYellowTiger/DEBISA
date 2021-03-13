@@ -25,28 +25,27 @@ object Main {
   def main(args: Array[String]): Unit = {
     println("start instance selection")
     val start_time = new Date().getTime
-//    val filepath = "/public/home/hpc182212046/dataset/randomDataset/"
-    val filepath = "/public/home/hpc182212046/dataset/classification/processed"
-    val fileName_withoutPath = "20_1000000.csv"
+    val filepath = args(0)
+    val fileName_withoutPath = args(1)
     val fileName = filepath + fileName_withoutPath
-    val resultPath = "/public/home/hpc182212046/dataset/is_result/"
-    val reduct_rate = 0.5
+    val resultPath = args(2)
+    val reduct_rate = args(3).toDouble
     println("reduct_rate="+reduct_rate)
-    var core_min=10
+    var core_min=args(4).toInt
     println("core_min="+core_min)
-    val parallel_num = 32
+    val parallel_num = args(5).toInt
     println("parallel_num="+parallel_num)
-    val iteration_num = 3
+    val iteration_num = args(6).toInt
     println("iteration_num="+iteration_num)
-    val singleGaIterNum=10
+    val singleGaIterNum=args(7).toInt
     println("singe_iter_num="+singleGaIterNum)
 //    val max_cal_instance_num = 2000 // 单次采样适应度计算每个种群的最大样本数
-    val sample_times = 5
+    val sample_times = args(8).toInt
     println("sample_times="+sample_times)
-    var fitness_sample_fraction = 0.1 // 小于10w的数据集不采样算适应度
+    var fitness_sample_fraction = args(9).toDouble // 小于10w的数据集不采样算适应度
     println("sample fraction="+fitness_sample_fraction)
-    val mutationThreshold=24 // 发生多少次父母基因汉明距离过短就发生变异
-    val resultPostfix = "_"+core_min.toString+"len_"+parallel_num+"p_"+iteration_num+"it_"+sample_times+"samp_0"+(fitness_sample_fraction*100).toInt+"samp"
+    val mutationThreshold=args(10).toInt // 发生多少次父母基因汉明距离过短就发生变异
+    val resultPostfix = "_"+core_min.toString+"len_"+parallel_num+"p_"+iteration_num+"it_"+sample_times+"samp_00"+(fitness_sample_fraction*1000).toInt+"samp"
 
     println("当前计算的数据集为："+fileName_withoutPath)
     Logger.getLogger("org").setLevel(Level.ERROR)
@@ -69,7 +68,7 @@ object Main {
 //    val fileData=sparkSession.read.parquet(fileName)
     val fileData = sparkSession
       .read.format("csv")
-      .option("header","true")
+      .option("header","false")
       .load(fileName)
     var sourceSchema = Seq[String]()
     for(i <- 0 to fileData.schema.length-1){
@@ -78,9 +77,9 @@ object Main {
 
     val oriData=fileData.select(sourceSchema.map(name => fileData.col(name).cast(DoubleType)):_*)
     var instance_num=fileData.count()
-    if (instance_num < 100000){
-      fitness_sample_fraction = 100
-    }
+//    if (instance_num < 100000){
+//      fitness_sample_fraction = 100
+//    }
     var iteration_num_d:Double=0
 //    if(result_num/parallel_num<=core_min){
 //      val a=(core_min*parallel_num).asInstanceOf[Double]/instance_num.asInstanceOf[Double]
