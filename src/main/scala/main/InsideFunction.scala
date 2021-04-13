@@ -59,7 +59,7 @@ object InsideFunction {
                 ,c2:Seq[((Long,Seq[Double]),(Double,Boolean))])
   :Seq[((Long,Seq[Double]),(Double,Boolean))]={
     var result=Seq[((Long,Seq[Double]),(Double,Boolean))]()
-    result=result:+((250L,null),(250.0,false))
+//    result=result:+((250L,null),(250.0,false))
     result
   }
 

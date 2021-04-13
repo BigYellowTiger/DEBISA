@@ -18,7 +18,9 @@ class FitnessAccumulator(parallel_num:Int) extends AccumulatorV2[(Int,Seq[((Long
 
   override def add(v: (Int,Seq[((Long,Seq[Double]),(Double,Boolean))])): Unit = {
     val tempRecorder=fitnessRecorder(v._1)
-    //数组第0位记录true的个数，第一位记录总个数
+    //数组第0位记录true的个数，第1位记录总个数
+    /**
+     * 如果采用采样的话，就可能出现某个分区中没有采样数据的情况，并不一定是每个分区均匀采样*/
     v._2.foreach(x=>{
       tempRecorder.update(1,tempRecorder(1)+1)
       if(x._2._2)

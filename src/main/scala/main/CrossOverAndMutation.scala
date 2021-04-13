@@ -14,7 +14,12 @@ object CrossOverAndMutation {
       var fitness_sum=0.0;
       val roulette=new Array[(Double,Double)](currentGenePartition.length)
       for(i<-0 to roulette.length-1){
-        val range=math.exp(currentFitnessPartition(i)*10)
+        var temp_fit = currentFitnessPartition(i)
+        // 因为基于采样的方法可能会在数据量较小时出现某个分区未采集到数据，故适应度可能会出现nan
+        if (temp_fit == 0 || temp_fit.isNaN()) {
+          temp_fit = 0.00001
+        }
+        val range=math.exp(temp_fit*10)
         roulette.update(i,(start,start+range))
         start+=range
         fitness_sum+=range
@@ -54,7 +59,12 @@ object CrossOverAndMutation {
         }
         if (pick1Happened == false || pick2Happened == false) {
           println("出现适应度未命中情况")
-          println("总适应度为："+fitness_sum)
+          println("适应度未命中情况下的适应度列表：")
+          for (test_i<-0 to 9) {
+            println("当前分区："+test_i.toString())
+            val test_cur_fit=allFitness(test_i)
+            println(test_cur_fit)
+          }
           println("r1 = "+r1+", r2 = "+r2+", 总fitness = "+fitness_sum)
           println(roulette)
         }
@@ -96,18 +106,6 @@ object CrossOverAndMutation {
         //crossover阶段，交换长度三分之一，再在其他位置对齐
         val crossStart=Random.nextInt(currentGenePartition(0).length*2/3)
         val crossEnd=crossStart+currentGenePartition(0).length/3
-        /****************/
-//        println("part id "+partId)
-//        println("picked 1")
-//        pickedGeneList1.foreach(x=>print(x+","))
-//        println()
-//        println("picked 2")
-//        pickedGeneList2.foreach(x=>print(x+","))
-//        println()
-//        println("cross start: "+crossStart)
-//        println("cross end: "+crossEnd)
-//        println("--------------------------")
-        /****************/
         var newGene1=new Array[Int](pickedGeneList1.length)
         var newGene2=new Array[Int](pickedGeneList1.length)
         //交换，记录换到new1的1比new1原来的1多多少
@@ -193,7 +191,7 @@ object CrossOverAndMutation {
   }
 
   def mutation(allGeneList:Map[Int,Array[Array[Int]]])={
-    println("发生变异")
+//    println("发生变异")
     //除了最优秀的，都发生四分之一位的变异，并在其他位置对齐，最优秀的在最后一个
     allGeneList.keySet.foreach(key=>{
       val currentGenePart=allGeneList(key)
@@ -201,15 +199,6 @@ object CrossOverAndMutation {
         val currentGene=currentGenePart(i)
         val mutStart=Random.nextInt(currentGene.length*3/4)
         val mutEnd=mutStart+currentGene.length/4
-        /*******************/
-//        println("---------------------")
-//        println("start "+mutStart)
-//        println("end "+mutEnd)
-//        print("未发生变异前：")
-//        currentGene.foreach(x=>print(x+","))
-//        println()
-        /*******************/
-
         var oneCounter=0
         for(mutBitIndex<-mutStart to mutEnd){
           if(currentGene(mutBitIndex)==1) {
@@ -220,11 +209,6 @@ object CrossOverAndMutation {
             oneCounter+=1
           }
         }
-        /*******************/
-//        print("未对齐的变异：")
-//        currentGene.foreach(x=>print(x+","))
-//        println()
-        /*******************/
 
         //对齐
         var alignCounter=0
@@ -248,12 +232,6 @@ object CrossOverAndMutation {
           }else
             alignCounter+=1
         }
-
-        /*******************/
-//        print("对齐后的变异：")
-//        currentGene.foreach(x=>print(x+","))
-//        println()
-        /*******************/
       }
     })
   }

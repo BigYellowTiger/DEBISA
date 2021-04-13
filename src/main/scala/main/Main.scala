@@ -45,6 +45,8 @@ object Main {
     var fitness_sample_fraction = args(9).toDouble // 小于10w的数据集不采样算适应度
     println("sample fraction="+fitness_sample_fraction)
     val mutationThreshold=args(10).toInt // 发生多少次父母基因汉明距离过短就发生变异
+    val stop_sample_in_small_dataset = args(11).toBoolean
+    val schema_read_on = args(12)
     val resultPostfix = "_"+core_min.toString+"len_"+parallel_num+"p_"+iteration_num+"it_"+sample_times+"samp_00"+(fitness_sample_fraction*1000).toInt+"samp"
 
     println("当前计算的数据集为："+fileName_withoutPath)
@@ -68,7 +70,7 @@ object Main {
 //    val fileData=sparkSession.read.parquet(fileName)
     val fileData = sparkSession
       .read.format("csv")
-      .option("header","false")
+      .option("header",schema_read_on)
       .load(fileName)
     var sourceSchema = Seq[String]()
     for(i <- 0 to fileData.schema.length-1){
@@ -77,18 +79,9 @@ object Main {
 
     val oriData=fileData.select(sourceSchema.map(name => fileData.col(name).cast(DoubleType)):_*)
     var instance_num=fileData.count()
-//    if (instance_num < 100000){
-//      fitness_sample_fraction = 100
-//    }
-    var iteration_num_d:Double=0
-//    if(result_num/parallel_num<=core_min){
-//      val a=(core_min*parallel_num).asInstanceOf[Double]/instance_num.asInstanceOf[Double]
-//      iteration_num_d=Math.log(a)/Math.log(reduct_rate)
-//    }else{
-//      val a=result_num.asInstanceOf[Double]/instance_num.asInstanceOf[Double]
-//      iteration_num_d=Math.log(a)/Math.log(reduct_rate)
-//    }
-//    var iteration_num=iteration_num_d.asInstanceOf[Int]
+    if (instance_num < 100000 && stop_sample_in_small_dataset){
+      fitness_sample_fraction = 100
+    }
 
     val cachedSourceData=oriData.rdd.zipWithIndex()
       .mapPartitions(it=>new SourceKVIterator(it))
@@ -96,8 +89,6 @@ object Main {
       .mapPartitions(it=>new CachedIterator(it,TaskContext))
     cachedSourceData.cache()
     println("初始样本数："+cachedSourceData.count())
-    //cachedSourceData.foreach(x=>println(x))
-      //.persist(StorageLevel.MEMORY_AND_DISK)
 
     val one_num=(core_min.asInstanceOf[Double]*reduct_rate).asInstanceOf[Int]
     val population_size=core_min
@@ -115,15 +106,6 @@ object Main {
       //init all genes
       println("开始第"+iterIndex.toString+"次遗传算法")
       println("本轮遗传算法数据集包含"+currentGaDataSet.count()+"个样本")
-      println("本轮遗传算法单位基因映射情况如下：")
-      var mutation_happened = false // 每次遗传算法仅会变异一次
-      var min_range = 999999999
-      var max_range = 0
-      var ave_range = 0
-      var range_sum_static = 0
-//      for (parallel_id <- 0 to parallel_num-1){
-//        if (parallel_id)
-//      }
       CreateGene.createGene(parallel_num,population_size,one_num,core_min,geneListMap)
       println("基因初始化完成")
 
@@ -153,10 +135,6 @@ object Main {
 
           //1-nn
           val subSetRdd=currentGaDataSet.filter(InsideFunction.belongToGene(currentCondition))
-          // 如果这一基因所代表的数据子集超过parallel_num*5000个样本，则进行采样，否则直接计算适应度，采样方式为每个种群随机选5000个样本用于计算
-
-//          val fitness_sample_fraction = max_cal_instance_num / ((instance_num / parallel_num) * math.pow(reduct_rate, iterIndex))
-//          val fitness_sample_fraction = 0.4
           if (fitness_sample_fraction <1) {
             subSetRdd.cache()
             val sampleFitnessRecorder = Map[Int,Seq[Double]]()
@@ -195,7 +173,6 @@ object Main {
               tempFitnessSeq = tempFitnessSeq :+ sum_fitness / sample_times
               allGeneFitness.update(fitnessRecordPIndex,tempFitnessSeq)
             }
-            println("第"+iterIndex+"次遗传算法的"+"第"+currentGaIterIndex+"次迭代的第"+i.toString+"条基因的适应度计算完成")
           } else {
             val calculatedSubset=subSetRdd.combineByKey(
               InsideFunction.firstMeet
@@ -215,7 +192,6 @@ object Main {
                 .value(fitnessRecordPIndex)(0).toDouble/fitnessAccumulator.value(fitnessRecordPIndex)(1).toDouble
               allGeneFitness.update(fitnessRecordPIndex,tempFitnessSeq)
             }
-            println("第"+iterIndex+"次遗传算法的"+"第"+currentGaIterIndex+"次迭代的第"+i.toString+"条基因的适应度计算完成")
           }
         }
 
@@ -249,8 +225,6 @@ object Main {
         if(currentGaIterIndex==singleGaIterNum){
           //找到适应度最高的基因
           val finallyBestGene=bestGene
-//          print("最好的基因：")
-//          println(finallyBestGene)
 
           //获取最好基因对应的映射
           val finallyBestCondition=Map[Int,Array[(Int,Int)]]()
@@ -278,12 +252,16 @@ object Main {
             })
             indexMap.update(partI,tempSeq.toArray)
           }
+
+          // 统计这一次遗传算法运行了多久
+          val exeTime = new Date().getTime
+          println("本次遗传算法运行时间为: "+(exeTime-start_time)/1000)
         }
       }
 
       if(iterIndex==iteration_num){
         val endTime = new Date().getTime
-        println("运行时间为: "+(endTime-start_time)/1000)
+        println("算法整体运行时间为: "+(endTime-start_time)/1000)
         val structField=new Array[StructField](sourceSchema.length)
         for(tempI<-0 to sourceSchema.length-1){
           structField.update(tempI,StructField(sourceSchema(tempI),DoubleType,false))

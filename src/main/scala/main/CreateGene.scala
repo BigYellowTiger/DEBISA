@@ -24,10 +24,6 @@ object CreateGene {
         partitionGeneList.update(pop,gene)
       }
       geneListMap(geneId)=partitionGeneList
-//      partitionGeneList.foreach(x=>{
-////        x.foreach(xx=>print(xx+","))
-//        println()
-//      })
     }
   }
 
